@@ -1,14 +1,21 @@
 import collections
 import re
+import nltk
 
 import numpy as np
 
 TOKEN_RE = re.compile(r'[\w\d]+')
 
 
-def tokenize_text_simple_regex(txt, min_token_size=4):
+def tokenize_text_simple_regex(txt, min_token_size=4, lemmatize=False, t_re=TOKEN_RE):
     txt = txt.lower()
-    all_tokens = TOKEN_RE.findall(txt)
+    all_tokens = t_re.findall(txt)
+
+    if lemmatize == True:
+        lemma = nltk.wordnet.WordNetLemmatizer()
+        for i, item in enumerate(all_tokens):
+            all_tokens[i] = lemma.lemmatize(item)
+
     return [token for token in all_tokens if len(token) >= min_token_size]
 
 
@@ -35,36 +42,37 @@ def build_vocabulary(tokenized_texts, max_size=1000000, max_doc_freq=0.8, min_co
     word_counts = collections.defaultdict(int)
     doc_n = 0
 
-    # посчитать количество документов, в которых употребляется каждое слово
-    # а также общее количество документов
+    # count the number of documents in which each word is used
+    # as well as the total number of documents
     for txt in tokenized_texts:
         doc_n += 1
         unique_text_tokens = set(txt)
         for token in unique_text_tokens:
             word_counts[token] += 1
 
-    # убрать слишком редкие и слишком частые слова
+    # remove too rare and too frequent words
     word_counts = {word: cnt for word, cnt in word_counts.items()
                    if cnt >= min_count and cnt / doc_n <= max_doc_freq}
 
-    # отсортировать слова по убыванию частоты
+    # sort words in descending order of frequency
     sorted_word_counts = sorted(word_counts.items(),
                                 reverse=True,
                                 key=lambda pair: pair[1])
 
-    # добавим несуществующее слово с индексом 0 для удобства пакетной обработки
+    # add a non-existent word with index 0 for batch processing convenience
     if pad_word is not None:
         sorted_word_counts = [(pad_word, 0)] + sorted_word_counts
 
-    # если у нас по прежнему слишком много слов, оставить только max_size самых частотных
+    # if we still have too many words, leave only the max_size of the most frequent ones
     if len(word_counts) > max_size:
         sorted_word_counts = sorted_word_counts[:max_size]
 
-    # нумеруем слова
+    # number words
     word2id = {word: i for i, (word, _) in enumerate(sorted_word_counts)}
 
-    # нормируем частоты слов
-    word2freq = np.array([cnt / doc_n for _, cnt in sorted_word_counts], dtype='float32')
+    # normalize word frequencies
+    word2freq = np.array(
+        [cnt / doc_n for _, cnt in sorted_word_counts], dtype='float32')
 
     return word2id, word2freq
 
