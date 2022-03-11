@@ -10,13 +10,13 @@ from .nnets import ensure_length
 
 
 def load_war_and_piece_chunks(fname, chunk_size=200):
-    with open(fname, 'r') as fin:
+    with open(fname, 'r', encoding="utf8") as fin:
         full_text = fin.read()
     return [full_text[start:start + chunk_size] for start in range(0, len(full_text), chunk_size // 2)]
 
 
 def save_texts_to_file(texts, out_file):
-    with open(out_file, 'w') as outf:
+    with open(out_file, 'w', encoding="utf8") as outf:
         outf.write('\n'.join(texts))
 
 
@@ -32,13 +32,14 @@ class LanguageModelDataset(Dataset):
     def __getitem__(self, item):
         text = self.token_ids[item]
         start_i = random.randint(0, max(0, len(text) - self.chunk_length - 1))
-        chunk = text[start_i : start_i + self.chunk_length + 1]
+        chunk = text[start_i: start_i + self.chunk_length + 1]
 
         seed_part = chunk[:-1]
         target_part = chunk[1:]
 
         seed_part = ensure_length(seed_part, self.chunk_length, self.pad_value)
-        target_part = ensure_length(target_part, self.chunk_length, self.pad_value)
+        target_part = ensure_length(
+            target_part, self.chunk_length, self.pad_value)
 
         seed_part = np.array(seed_part)
         target_part = np.array(target_part)
@@ -84,9 +85,11 @@ class BeamGenerator:
         final_hypotheses = []
 
         while len(partial_hypotheses) > 0:
-            cur_partial_score, cur_partial_hypothesis = heapq.heappop(partial_hypotheses)
+            cur_partial_score, cur_partial_hypothesis = heapq.heappop(
+                partial_hypotheses)
 
-            in_batch = torch.tensor(cur_partial_hypothesis).unsqueeze(0).to(self.device)
+            in_batch = torch.tensor(
+                cur_partial_hypothesis).unsqueeze(0).to(self.device)
             next_tokens_logits = self.model(in_batch)[0, -1]
             next_tokens_logproba = F.log_softmax(next_tokens_logits)
             topk_continuations = next_tokens_logproba.topk(beamsize)
@@ -95,8 +98,10 @@ class BeamGenerator:
                 token_score = float(token_score)
                 token_idx = int(token_idx)
 
-                old_denorm_score = cur_partial_score * np.sqrt(len(cur_partial_hypothesis))
-                new_score = (old_denorm_score - token_score) / np.sqrt(len(cur_partial_hypothesis) + 1)
+                old_denorm_score = cur_partial_score * \
+                    np.sqrt(len(cur_partial_hypothesis))
+                new_score = (old_denorm_score - token_score) / \
+                    np.sqrt(len(cur_partial_hypothesis) + 1)
 
                 new_hypothesis = cur_partial_hypothesis + [token_idx]
                 new_item = (new_score, new_hypothesis)
@@ -107,7 +112,8 @@ class BeamGenerator:
                     heapq.heappush(partial_hypotheses, new_item)
 
             if len(partial_hypotheses) > beamsize:
-                partial_hypotheses = heapq.nsmallest(beamsize, partial_hypotheses)
+                partial_hypotheses = heapq.nsmallest(
+                    beamsize, partial_hypotheses)
                 heapq.heapify(partial_hypotheses)
 
         final_scores, final_token_lists = zip(*final_hypotheses)
